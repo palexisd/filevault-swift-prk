@@ -38,17 +38,17 @@ errorPromptEn=""
 os_color_mode=$(if defaults read -g AppleInterfaceStyleSwitchesAutomatically > /dev/null && \
    		defaults read -g AppleInterfaceStyle -string | grep -q "^Dark"; then
 
-    	echo "Dark"
+    			echo "Dark"
 		
-	elif defaults read -g AppleInterfaceStyle -string | grep -q "^Dark"; then
+		elif defaults read -g AppleInterfaceStyle -string | grep -q "^Dark"; then
 		
-    	echo "Dark"
+    			echo "Dark"
 		
-	else
+		else
 		
-    	echo "Light"
+    			echo "Light"
 		
-	fi
+		fi
 )
 
 if [ "$os_color_mode" = "Dark" ]; then
