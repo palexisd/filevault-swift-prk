@@ -5,7 +5,7 @@
 # Credit to @wylan_swets on the jamf forum for the key rotation script https://community.jamf.com/t5/jamf-pro/self-service-script-to-disable-filevault/m-p/180341/highlight/true#M169171
 # Credit to @acodega for the swiftdialog check / install
 
-# Script Version 0.1
+# Script Version 0.3
 
 ####################################################################################################
 #
@@ -13,7 +13,7 @@
 #
 ####################################################################################################
 
-scriptLog="/var/tmp/logfilename.log"
+scriptLog="/var/tmp/FileVaultPRK.log"
 loggedInUser=$( echo "show State:/Users/ConsoleUser" | scutil | awk '/Name :/ { print $3 }' )
 logoLight=""
 logoDark=""
@@ -30,59 +30,22 @@ errorPromptEn=""
 
 ####################################################################################################
 #
-# Preferences check
-#
-####################################################################################################
-
-# Check if device is using dark or light theme and change used logo
-os_color_mode=$(if defaults read -g AppleInterfaceStyleSwitchesAutomatically > /dev/null && \
-   		defaults read -g AppleInterfaceStyle -string | grep -q "^Dark"; then
-
-    			echo "Dark"
-		
-		elif defaults read -g AppleInterfaceStyle -string | grep -q "^Dark"; then
-		
-    			echo "Dark"
-		
-		else
-		
-    			echo "Light"
-		
-		fi
-)
-
-if [ "$os_color_mode" = "Dark" ]; then
-	
-	icon_path=$logoDark
-	
-else
-	
-	icon_path=$logoLight
-	
-fi
-
-
-# Check system language. Set message to use either Fr or En prompts
-sysLanguage=(`defaults read NSGlobalDomain AppleLanguages`)
-if [[ "${sysLanguage[2]/,/}" = *"fr"* ]]; then
-	
-	passPrompt=${passPromptFr}
-	successPrompt=${successPromptFr}
-	errorPrompt=${errorPromptFr}
-	
-else
-	
-	passPrompt=${passPromptEn}
-	successPrompt=${successPromptEn}
-	errorPrompt=${errorPromptEn}
-	
-fi
-
-####################################################################################################
-#
 # Functions
 #
 ####################################################################################################
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Run command as User
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+RunAsUser() {  
+	if [ "$loggedInUser" != "loginwindow" ]; then
+		launchctl asuser "$uid" sudo -u "$loggedInUser" "$@"
+	fi
+}	
+
+
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Client-side Script Logging
@@ -131,7 +94,7 @@ function dialogCheck() {
         else
 
             # Display a so-called "simple" dialog if Team ID fails to validate
-            runAsUser osascript -e 'display dialog "Please advise your Support Representative of the following error:\r\r• Dialog Team ID verification failed\r\r" with title "Display Message: Error" buttons {"Close"} with icon caution'
+            RunAsUser osascript -e 'display dialog "Please advise your Support Representative of the following error:\r\r• Dialog Team ID verification failed\r\r" with title "Display Message: Error" buttons {"Close"} with icon caution'
             quitScript "1"
 
         fi
@@ -149,6 +112,43 @@ function dialogCheck() {
 
 dialogCheck
 
+
+
+####################################################################################################
+#
+# Preferences check
+#
+####################################################################################################
+
+# Check if device is using dark or light theme and change used logo
+os_color_mode=$(/usr/bin/defaults read /Users/$loggedInUser/Library/Preferences/.GlobalPreferences.plist AppleInterfaceStyle)
+
+if [ "$os_color_mode" = "Dark" ]; then
+	
+	icon_path="$logoDark"
+	
+else
+	
+	icon_path="$logoLight"
+	
+fi
+
+
+# Check system language. Set message to use either Fr or En prompts
+sysLanguage=$(defaults read -g AppleLanguages | sed -n 2p)
+if [[ ${sysLanguage} = *"fr"* ]]; then
+	
+	passPrompt=${passPromptFr}
+	successPrompt=${successPromptFr}
+	errorPrompt=${errorPromptFr}
+	
+else
+	
+	passPrompt=${passPromptEn}
+	successPrompt=${successPromptEn}
+	errorPrompt=${errorPromptEn}
+	
+fi
 
 
 ####################################################################################################
@@ -201,6 +201,7 @@ EOT
 
 
 # If the output has key = in it, then the key has been rotated
+# Key will be escrowed to MDM at next information update
 if [ `echo ${vaultKey} | grep -c "key =" ` -gt 0 ]; then
 	
 	/usr/local/bin/dialog --title FileVault --titlefont name=${fontBold} --message "${successPrompt}" --messagefont name=${fontRegular} --icon ${icon_path} --button1text "OK" -s -o
